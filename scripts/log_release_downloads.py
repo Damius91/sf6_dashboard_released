@@ -40,7 +40,7 @@ def _load_last_counts(csv_path: Path) -> Dict[str, int]:
     last: Dict[str, int] = {}
     if not csv_path.exists():
         return last
-    with csv_path.open("r", encoding="utf-8", newline="") as f:
+    with csv_path.open("r", encoding="utf-8", newline=) as f:
         reader = csv.DictReader(f)
         for row in reader:
             last[row["asset_name"]] = int(row["download_count_total"])
@@ -62,7 +62,7 @@ def main() -> None:
 
     metrics_dir = Path("metrics")
     metrics_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = metrics_dir / ""downloads_log_jst.csv""
+    csv_path = metrics_dir / "downloads_log_jst.csv"
 
     last_counts = _load_last_counts(csv_path)
 
