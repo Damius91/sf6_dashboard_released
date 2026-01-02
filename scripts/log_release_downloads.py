@@ -90,6 +90,42 @@ def main() -> None:
 
     print(f"Wrote {len(new_rows)} rows to {csv_path}")
 
+from zoneinfo import ZoneInfo
+
+jst = ZoneInfo("Asia/Tokyo")
+now_jst = datetime.now(timezone.utc).astimezone(jst).replace(microsecond=0)
+
+metrics_dir = Path("metrics")
+metrics_dir.mkdir(parents=True, exist_ok=True)
+
+last_poll_path = metrics_dir / "last_poll_jst.txt"
+events_csv = metrics_dir / "download_events_approx.csv"
+
+# 前回取得時刻（なければ今回と同じにして初回はイベント出さない）
+if last_poll_path.exists():
+    prev_jst = datetime.fromisoformat(last_poll_path.read_text(encoding="utf-8").strip())
+else:
+    prev_jst = now_jst
+
+# delta計算はあなたの既存ロジック（download_countの差分）を使用
+# delta > 0 のときだけ events_csv に追記
+if not events_csv.exists():
+    events_csv.write_text("window_start_jst,window_end_jst,asset_name,delta_downloads\n", encoding="utf-8")
+
+with events_csv.open("a", encoding="utf-8", newline="") as f:
+    w = csv.writer(f)
+    for a in assets:
+        name = str(a.get("name", ""))
+        total = int(a.get("download_count", 0))
+        prev_total = last_counts.get(name, total)
+        delta = total - prev_total
+        if delta > 0:
+            w.writerow([prev_jst.isoformat(), now_jst.isoformat(), name, delta])
+
+# 最後に前回時刻を更新
+last_poll_path.write_text(now_jst.isoformat(), encoding="utf-8")
+
+
 
 if __name__ == "__main__":
     main()
