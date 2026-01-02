@@ -2,7 +2,7 @@ name: Log release asset downloads
 
 on:
   schedule:
-    - cron: "15 0 * * *" # 毎日 00:15 UTC（日本時間 09:15）
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -32,6 +32,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add metrics/downloads_log_jst.csv
+          git add metrics/downloads_log.csv metrics/download_events_approx.csv metrics/last_poll_jst.txt
           git commit -m "chore: log release download counts" || exit 0
           git push
+
