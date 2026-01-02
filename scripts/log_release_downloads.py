@@ -4,6 +4,8 @@ import csv
 import os
 import json
 import urllib.request
+from zoneinfo import ZoneInfo
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,13 +62,15 @@ def main() -> None:
 
     metrics_dir = Path("metrics")
     metrics_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = metrics_dir / "downloads_log.csv"
+    csv_path = metrics_dir / ""downloads_log_jst.csv""
 
     last_counts = _load_last_counts(csv_path)
 
-    now_utc = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    jst = ZoneInfo("Asia/Tokyo")
+    now_jst = datetime.now(timezone.utc).astimezone(jst).replace(microsecond=0).isoformat()
 
-    header = ["timestamp_utc", "release_tag", "asset_name", "download_count_total", "delta_since_prev"]
+
+    header = ["timestamp_jst", "release_tag", "asset_name", "download_count_total", "delta_since_prev"]
     new_rows: List[AssetRow] = []
 
     for a in assets:
@@ -74,7 +78,7 @@ def main() -> None:
         total = int(a.get("download_count", 0))
         prev = last_counts.get(name, total)
         delta = total - prev
-        new_rows.append(AssetRow(now_utc, release_tag, name, total, delta))
+        new_rows.append(AssetRow(_utc, release_tag, name, total, delta))
 
     file_exists = csv_path.exists()
     with csv_path.open("a", encoding="utf-8", newline="") as f:
@@ -82,7 +86,7 @@ def main() -> None:
         if not file_exists:
             writer.writerow(header)
         for r in new_rows:
-            writer.writerow([r.timestamp_utc, r.release_tag, r.asset_name, r.download_count_total, r.delta_since_prev])
+            writer.writerow([r.timestamp_jst, r.release_tag, r.asset_name, r.download_count_total, r.delta_since_prev])
 
     print(f"Wrote {len(new_rows)} rows to {csv_path}")
 
