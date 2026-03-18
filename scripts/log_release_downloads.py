@@ -4,27 +4,17 @@ import csv
 import json
 import os
 import urllib.request
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
-
 # ===== 設定 =====
-SNAPSHOT_CSV = "downloads_log.csv"               # metrics/ 配下
-APPROX_EVENTS_CSV = "download_events_approx.csv" # metrics/ 配下
-LAST_POLL_FILE = "last_poll_jst.txt"             # metrics/ 配下
+APPROX_EVENTS_CSV = "download_events_approx.csv"  # metrics/ 配下
+LAST_POLL_FILE    = "last_poll_jst.txt"            # metrics/ 配下
+LAST_COUNTS_FILE  = "last_counts.json"             # metrics/ 配下（上書き、膨らまない）
+
 JST_TZ = ZoneInfo("Asia/Tokyo")
-
-
-@dataclass(frozen=True)
-class SnapshotRow:
-    timestamp_jst: str
-    release_tag: str
-    asset_name: str
-    download_count_total: int
-    delta_since_prev: int
 
 
 def _gh_api_get(url: str, token: str) -> Any:
@@ -42,54 +32,25 @@ def _gh_api_get(url: str, token: str) -> Any:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _read_csv_header(path: Path) -> Optional[List[str]]:
+def _load_last_counts(path: Path) -> Dict[str, int]:
+    """
+    前回の累計カウントを読む（delta計算用）。
+    last_counts.json から読み込む。存在しなければ空dictを返す。
+    """
     if not path.exists():
-        return None
-    with path.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.reader(f)
-        try:
-            return next(reader)
-        except StopIteration:
-            return None
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {k: int(v) for k, v in data.items()}
+    except (json.JSONDecodeError, ValueError):
+        return {}
 
 
-def _backup_if_header_mismatch(path: Path, expected_header: List[str]) -> None:
+def _save_last_counts(path: Path, counts: Dict[str, int]) -> None:
     """
-    既存CSVのヘッダが期待値と違う場合、破壊を避けるために退避して新規作成する。
+    今回の累計カウントを上書き保存する（追記しないので膨らまない）。
     """
-    hdr = _read_csv_header(path)
-    if hdr is None:
-        return
-    if hdr == expected_header:
-        return
-
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    backup = path.with_name(f"{path.stem}_backup_{ts}{path.suffix}")
-    path.rename(backup)
-    print(f"[WARN] Header mismatch. Backed up {path} -> {backup}")
-
-
-def _load_last_counts(snapshot_csv_path: Path) -> Dict[str, int]:
-    """
-    asset_name -> last download_count_total
-    """
-    last: Dict[str, int] = {}
-    if not snapshot_csv_path.exists():
-        return last
-
-    with snapshot_csv_path.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # 同名assetの最終値で上書きされ続けるので、結果的に「最後」が残る
-            name = row.get("asset_name", "")
-            total = row.get("download_count_total", "")
-            if name and total:
-                try:
-                    last[name] = int(total)
-                except ValueError:
-                    # 壊れた行は無視
-                    pass
-    return last
+    path.write_text(json.dumps(counts, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _read_last_poll_jst(path: Path) -> Optional[datetime]:
@@ -111,7 +72,7 @@ def _write_last_poll_jst(path: Path, dt_jst: datetime) -> None:
 
 def main() -> None:
     owner = os.environ.get("OWNER", "").strip()
-    repo = os.environ.get("REPO", "").strip()
+    repo  = os.environ.get("REPO", "").strip()
     token = os.environ.get("GITHUB_TOKEN", "").strip()
 
     if not owner or not repo or not token:
@@ -120,24 +81,12 @@ def main() -> None:
     metrics_dir = Path("metrics")
     metrics_dir.mkdir(parents=True, exist_ok=True)
 
-    snapshot_csv_path = metrics_dir / SNAPSHOT_CSV
-    events_csv_path = metrics_dir / APPROX_EVENTS_CSV
-    last_poll_path = metrics_dir / LAST_POLL_FILE
-
-    # スナップショットCSVの期待ヘッダ（JST）
-    snapshot_header = [
-        "timestamp_jst",
-        "release_tag",
-        "asset_name",
-        "download_count_total",
-        "delta_since_prev",
-    ]
-
-    # 既存がUTC版などで混在しているとCSVが壊れるので、ヘッダ不一致なら退避
-    _backup_if_header_mismatch(snapshot_csv_path, snapshot_header)
+    events_csv_path   = metrics_dir / APPROX_EVENTS_CSV
+    last_poll_path    = metrics_dir / LAST_POLL_FILE
+    last_counts_path  = metrics_dir / LAST_COUNTS_FILE
 
     # 前回の累計を読む（delta計算用）
-    last_counts = _load_last_counts(snapshot_csv_path)
+    last_counts = _load_last_counts(last_counts_path)
 
     # 最新リリースを取得
     latest = _gh_api_get(
@@ -148,75 +97,54 @@ def main() -> None:
     assets: List[dict] = latest.get("assets") or []
 
     now_jst = datetime.now(timezone.utc).astimezone(JST_TZ).replace(microsecond=0)
-    now_jst_str = now_jst.isoformat()
 
     # 近似イベントログ用の「前回ポーリング時刻」
     prev_poll_jst = _read_last_poll_jst(last_poll_path)
+    is_first_poll = (prev_poll_jst is None)
     if prev_poll_jst is None:
-        # 初回は window を作れないので「イベント出力なし」にする
+        # 初回は window を作れないのでイベント出力なし
         prev_poll_jst = now_jst
 
-    # スナップショット行生成
-    rows: List[SnapshotRow] = []
-    for a in assets:
-        name = str(a.get("name", ""))
-        total = int(a.get("download_count", 0))
-
-        prev_total = last_counts.get(name, total)
-        delta = total - prev_total
-
-        rows.append(SnapshotRow(
-            timestamp_jst=now_jst_str,
-            release_tag=release_tag,
-            asset_name=name,
-            download_count_total=total,
-            delta_since_prev=delta,
-        ))
-
-    # スナップショットCSVへ追記
-    write_header = not snapshot_csv_path.exists()
-    with snapshot_csv_path.open("a", encoding="utf-8", newline="") as f:
-        w = csv.writer(f)
-        if write_header:
-            w.writerow(snapshot_header)
-        for r in rows:
-            w.writerow([
-                r.timestamp_jst,
-                r.release_tag,
-                r.asset_name,
-                r.download_count_total,
-                r.delta_since_prev,
-            ])
-
-    # 近似イベントログ（増分があるときだけ、区間で記録）
-    # 形式: window_start_jst, window_end_jst, asset_name, delta_downloads
+    # 近似イベントログCSVヘッダ初期化
     events_header = ["window_start_jst", "window_end_jst", "asset_name", "delta_downloads"]
     if not events_csv_path.exists():
         with events_csv_path.open("w", encoding="utf-8", newline="") as f:
             csv.writer(f).writerow(events_header)
 
-    # “初回”は prev_poll==now なので delta>0でもイベントを出すか迷うが、
-    # 誤解を避けるため初回は出さない（windowが0幅になるため）
-    is_first_poll = (prev_poll_jst == now_jst and not last_poll_path.exists())
+    # 今回の累計カウントを組み立てつつ、増分があればイベントCSVに追記
+    current_counts: Dict[str, int] = {}
+    event_rows_written = 0
 
-    if not is_first_poll:
-        with events_csv_path.open("a", encoding="utf-8", newline="") as f:
-            w = csv.writer(f)
-            for r in rows:
-                if r.delta_since_prev > 0:
-                    w.writerow([
-                        prev_poll_jst.isoformat(),
-                        now_jst.isoformat(),
-                        r.asset_name,
-                        r.delta_since_prev,
-                    ])
+    with events_csv_path.open("a", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        for a in assets:
+            name  = str(a.get("name", ""))
+            total = int(a.get("download_count", 0))
+            prev_total = last_counts.get(name, total)
+            delta = total - prev_total
 
-    # 最後にポーリング時刻を保存
+            current_counts[name] = total
+
+            # 初回は window が0幅になるため出力しない
+            if not is_first_poll and delta > 0:
+                w.writerow([
+                    prev_poll_jst.isoformat(),
+                    now_jst.isoformat(),
+                    name,
+                    delta,
+                ])
+                event_rows_written += 1
+
+    # 今回の累計を上書き保存（膨らまない）
+    _save_last_counts(last_counts_path, current_counts)
+
+    # 最後にポーリング時刻を保存（上書き）
     _write_last_poll_jst(last_poll_path, now_jst)
 
-    print(f"Wrote snapshot rows: {len(rows)} -> {snapshot_csv_path}")
-    print(f"Updated last poll -> {last_poll_path}")
-    print(f"Approx events -> {events_csv_path}")
+    print(f"[{now_jst.isoformat()}] Polled {len(assets)} asset(s) for {release_tag}")
+    print(f"  Event rows written : {event_rows_written} -> {events_csv_path}")
+    print(f"  Last counts saved  -> {last_counts_path}")
+    print(f"  Last poll saved    -> {last_poll_path}")
 
 
 if __name__ == "__main__":
