@@ -32,7 +32,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add metrics/downloads_log.csv metrics/download_events_approx.csv metrics/last_poll_jst.txt
+          git add metrics/download_events_approx.csv metrics/last_counts.json metrics/last_poll_jst.txt
           git commit -m "chore: log release download counts" || exit 0
           git push
-
