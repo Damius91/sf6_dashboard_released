@@ -1,5 +1,5 @@
 {
-  "sf6_dashboard_bundle_latest.zip": 0,
+  "sf6_dashboard_bundle_latest.zip": 1,
   "sf6_dashboard_bundle_v0.10.1.zip": 0,
   "sf6_dashboard_bundle_v0.10.2.zip": 1,
   "sf6_dashboard_bundle_v0.10.3.1.zip": 2,
@@ -100,5 +100,7 @@
   "sf6_dashboard_bundle_v1.9.6.zip": 0,
   "sf6_dashboard_bundle_v1.9.7.zip": 0,
   "sf6_dashboard_bundle_v1.9.8.zip": 0,
-  "sf6_dashboard_bundle_v2.0.0.zip": 0
+  "sf6_dashboard_bundle_v2.0.0.zip": 0,
+  "sf6_dashboard_bundle_v2.0.1.zip": 0,
+  "sf6_dashboard_bundle_v2.0.2.zip": 0
 }
