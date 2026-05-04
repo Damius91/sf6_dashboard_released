@@ -17,6 +17,10 @@ LAST_COUNTS_FILE  = "last_counts.json"             # metrics/ 配下（上書き
 JST_TZ = ZoneInfo("Asia/Tokyo")
 
 
+def _fmt(dt: datetime) -> str:
+    return f"{dt.year}.{dt.month}.{dt.day} {dt.hour:02d}.{dt.minute:02d}"
+
+
 def _gh_api_get(url: str, token: str) -> Any:
     req = urllib.request.Request(
         url,
@@ -106,7 +110,7 @@ def main() -> None:
         prev_poll_jst = now_jst
 
     # 近似イベントログCSVヘッダ初期化
-    events_header = ["window_start_jst", "window_end_jst", "asset_name", "delta_downloads"]
+    events_header = ["start", "end", "asset_name", "delta_downloads"]
     if not events_csv_path.exists():
         with events_csv_path.open("w", encoding="utf-8", newline="") as f:
             csv.writer(f).writerow(events_header)
@@ -128,8 +132,8 @@ def main() -> None:
             # 初回は window が0幅になるため出力しない
             if not is_first_poll and delta > 0:
                 w.writerow([
-                    prev_poll_jst.isoformat(),
-                    now_jst.isoformat(),
+                    _fmt(prev_poll_jst),
+                    _fmt(now_jst),
                     name,
                     delta,
                 ])
