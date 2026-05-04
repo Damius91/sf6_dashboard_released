@@ -1,4 +1,4 @@
-# SF6 Battlelog Dashboard 使い方（非エンジニア向け）
+# SF6 TRACKER 使い方（非エンジニア向け）
 
 バージョン 2.0.5
 
