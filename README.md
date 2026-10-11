@@ -1,6 +1,14 @@
 # SF6 Battlelog Dashboard 使い方（非エンジニア向け）
 
-バージョン 2.27.4
+バージョン 3.0.0
+
+## ダウンロード
+
+最新版は [リリースページ](https://github.com/Damius91/sf6_dashboard_released/releases/latest) から入手できます。
+
+- ダウンロードするのは `sf6_dashboard_bundle_vX.Y.Z.zip`（X.Y.Z は版番号）です
+- 一緒に並んでいる **Source code (zip) / Source code (tar.gz) は不要**です（GitHub が自動で付けるもので、アプリは入っていません）
+- すでに使っている人は、アプリ内のアップデートで更新できます（v2 系の人は一度 v3.0.0 に更新されたあと、もう一度最新版への更新が案内されます）
 
 ---
 
