@@ -4,7 +4,7 @@
 
 ## ダウンロード
 
-最新版は [リリースページ](https://github.com/Damius91/sf6_dashboard_released/releases/latest) から入手できます。
+最新版は [リリースページ](https://github.com/bivexum/sf6_dashboard_released/releases/latest) から入手できます。
 
 - ダウンロードするのは `sf6_dashboard_bundle_vX.Y.Z.zip`（X.Y.Z は版番号）です
 - 一緒に並んでいる **Source code (zip) / Source code (tar.gz) は不要**です（GitHub が自動で付けるもので、アプリは入っていません）
